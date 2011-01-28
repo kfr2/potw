@@ -1,0 +1,297 @@
+#!/usr/bin/php
+<?php
+/* -------------------------------------------------
+ * author:  Kevin Richardson <kevin@triageworks.net>
+ * file:    prefixer.  converts input with enfix notation
+ *          to the same in prefix notation.
+ * date:    28-Jan-11
+ * for:     http://www.justin.tv/problems/prefixer
+ * -----------------------------------------------*/
+
+
+/* -------------------------------------------- 
+ * Setup the script.  Get the infix notation,
+ * turn it into an array, and loop until done.
+ * ------------------------------------------*/
+
+// turn off error reporting
+error_reporting(0);
+
+if($argc < 2){  die("Usage:  ./prefixer (-r) input-file\n\n"); } 
+
+// see if the script needs to reduce the expression as much as possible.
+// it'll do this if the -r flag is called.
+if($argv[1] == "-r"){
+    $reduce = true;
+    $file = $argv[2];
+}
+
+else{
+    $reduce = false;
+    $file = $argv[1];
+}
+
+
+// open the file into a string
+$infixStr = file_get_contents($file) or die("Error opening the infix file.");
+
+// remove whitespace from the string.  We are not
+// particularly concerned with it.
+$infixStr = trim(preg_replace('/ +/', '', $infixStr));
+
+// place each character of the string into an array
+$storage = str_split($infixStr);
+
+// call the function that will work until the string
+// has been converted to prefix notation. 
+// print out this new string.
+while(true){ prefixize(); }
+
+
+
+/* ----------------------------------------------  
+ * program logic:
+ * Functions that will be called multiple times.
+ * --------------------------------------------*/
+
+// swaps values in the array to turn (1+2) into (+ 1 2),
+// a type of "unit" that will replace. alternatively, if
+// reduction is enabled and the operands are numeric,
+// return the result of the expression
+function makeUnit($operand1, $operator, $operand2){
+    global $reduce;
+
+    if($reduce){
+        if(is_numeric($operand1) && is_numeric($operand2)){
+            switch($operator){
+                case "*":   return($operand1 * $operand2);
+                case "/":   return($operand1 / $operand2);
+                case "+":   return($operand1 + $operand2);
+                case "-":   return($operand1 - $operand2);
+            }
+        }
+
+        else{ return ("({$operator} {$operand1} {$operand2})"); }
+    }
+
+    else{ return("({$operator} {$operand1} {$operand2})"); }
+}
+
+/*
+ * Calls makeUnit on either the array passed as an argument or the entire
+ * storage array.  It looks through the array for the next thing to
+ * compute, based on orders of operation (* or /, + or -).
+ * 
+ * Parentheses are taken into consideration during prefixize().
+ * 
+ * If $return is TRUE, the array will loop until the statement array
+ * has length 1 -- this is used for working on values inside parentheses
+ */
+function doOrders($values = "", $return = FALSE){
+    global $storage;
+
+    // Modify the storage array directly if we're not doing orders
+    // inside a parenthesis set.
+    if($values == ""){
+        $values =& $storage;
+    }
+
+    // get the values of the locations of the first * or / and
+    // set the start location to whichever is closer to the
+    // beginning of the array.
+    $multiplication = array_search('*', $values, TRUE);
+    $division = array_search('/', $values, TRUE);
+
+    // php will treat array_search returning FALSE as 0.
+    // Gotta have a workaround.
+    if($multiplication === FALSE){ $multiplication = -1; }
+    if($division === FALSE){ $division = -1; }
+
+    // Both are available. find the one closer to the beginning
+    // of the array.
+    if(($multiplication > -1) && ($division > -1)){
+        if($multiplication <= $division){ $startPosition = $multiplication - 1; }
+        else{   $startPosition = $division - 1; }
+    }
+
+    // return the *
+    elseif($multiplication > -1){   $startPosition = $multiplication - 1; }
+
+    // return the /
+    else{ $startPosition = $division - 1; }
+
+
+    // if multiplication and division are done, work on addition and
+    // subtraction
+    if(isset($multiplication) && isset($division)){
+        if(($multiplication == -1) && ($division == -1)){
+            // Similar to the multiplication section. Checks for + and -
+            $addition = array_search('+', $values, TRUE);
+            $subtraction = array_search('-', $values, TRUE);
+
+            // similar workaround to the multiplication section
+            if($addition === FALSE){ $addition = -1; }
+            if($subtraction === FALSE){ $subtraction = -1; }
+
+            // both are available. find the one closest to the beginning
+            if(($addition > -1) && ($subtraction > -1)){
+                if($addition < $subtraction){ $startPosition = $addition - 1; }
+                else{ $startPosition = $subtraction - 1;    }
+            }
+
+            // return the +
+            elseif($addition > -1){ $startPosition = $addition - 1; }
+
+            // return the -
+            else{   $startPosition = $subtraction - 1; }
+        }
+    }
+
+    /* The workhorse:
+     * Turn the values the script is working on (ex: "2+2) into a unit
+     *    ex: (+ 2 2)
+     * "3 + ()" and should cry.
+     */
+    if(isset($values[$startPosition])){
+        // the array should look something like:
+        // [$startPosition] = operand1
+        // [$startPosition + 1] = operator 
+        // [$startPosition + 2] = operand2
+
+        $operand1 = $values[$startPosition];
+        $operator = $values[$startPosition + 1];
+        $operand2 = $values[$startPosition + 2];
+
+        // turn these values into a "unit" and add it to the array
+        $unit = makeUnit($operand1, $operator, $operand2);
+
+        // Unset the operator and operand2 since they've been
+        // incorporated into the unit
+        unset($values[$startPosition + 1]);
+        unset($values[$startPosition + 2]);
+
+        // add the unit to whichever array the values currently belong to
+        $values[$startPosition] = $unit;
+
+        // fix the indexes
+        ksort($values, SORT_NUMERIC);
+
+        if($return == TRUE){
+            return $values;
+        }
+    }
+
+    else{
+        // remove the somehow offensive aspect of the array
+        unset($values[$startPosition - 1]);
+        die("Invalid input!");
+    }   
+}
+
+
+/* -------------------------------------------- 
+ * Main program logic.  Loops until the entire
+ * array is ready to be printed out. It is
+ * ready when the array has one, large "unit."
+ * ex:  $storage[0] = "(+ (* 3 3) 7)"
+ * ------------------------------------------*/
+function prefixize(){
+    global $storage;
+
+    // reindex the array
+    $storage = array_values($storage);
+
+    // when the array is down to one element, we're done!  Print the result.
+    if(count($storage) == 1){
+        print($storage[0] . "\n");
+        die();
+    }
+
+    // ----------------------------------------------------------------- 
+    // We're going to look through $storage to find the next unmodified
+    // operation according to the order of operations, and replace these
+    // operands and operator with the corresponding "unit."  Once this
+    // is done, call prefixize with the new $storage value.
+    // ----------------------------------------------------------------- 
+
+
+    // Search the array for the beginnings of parentheses pairs.
+    $openParentheses = array_keys($storage, "(", TRUE);
+    
+    if(count($openParentheses) != 0){
+        // It doesn't particularly matter which parenthesis pair
+        // we examine and Aconvert to prefix notation first
+        // because of how the "unit" is inserted into the array
+        // in its logical position.  However, complexity can be reduced
+        // by starting with the parenthesis pair nearest the end of
+        // the array and working backwards.
+
+        // find the open parenthesis nearest the end and its matching
+        // closing parenthesis
+        $open = $openParentheses[count($openParentheses) - 1];
+
+        $closeParentheses = array_keys($storage, ")", TRUE);
+
+        // the matching closing parenthesis will be the shortest distance
+        // from $openParenthesis
+        $close = "";
+        $distance = PHP_INT_MAX;
+
+        foreach($closeParentheses as $point){
+            $temp = $point - $open;
+            if(($temp < $distance) && $temp > 0){
+                $close = $point;
+                $distance = $point - $open;
+            }
+        }
+
+        // determine the range to examine for order of operations
+        // (excluding parentheses)
+        $startPosition = $open + 1;
+        $endPosition = $close - 1;
+
+        // remove the parentheses from the array.
+        unset($storage[$open]);
+        unset($storage[$close]);
+
+        // one must account for situations in which the user has input
+        // in a style that has more than 2 arguments in a parentheses pair
+        // (ex:  (3 + 2 * 3)
+
+        // take what is inside the parentheses and send it to the order
+        // of operations function
+        $temp = array();
+        for($i = $startPosition; $i <= $endPosition; $i++){
+            $temp[] = $storage[$i];
+            unset($storage[$i]);
+        }
+
+
+        // doOrders will return a prefixed version of the statement
+        // from $storage[$startPosition] to $storage[$stopPosition].
+        // Run the orders function until all values have been turned
+        // into a single unit.
+        while(count($temp) > 1){
+            ksort($temp, SORT_NUMERIC);
+            $temp = array_values($temp);
+
+            $temp = doOrders($temp, TRUE);
+        }
+
+        // insert this new, prefixed version into the storage array.
+        $storage[$startPosition] = $temp[0];
+
+        // sort the array by key value
+        ksort($storage, SORT_NUMERIC);
+
+    }
+
+
+    // if there are no parentheses remaining, work on remaining operations
+    // according to the orders of operation 
+    elseif(count($openParentheses) == 0){
+        doOrders();
+    }
+}
+
+?>
