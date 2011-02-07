@@ -2,7 +2,7 @@
 <?php
 /* -------------------------------------------------
  * author:  Kevin Richardson <kevin@triageworks.net>
- * file:    prefixer.  converts input with enfix notation
+ * file:    prefixer.  converts input with infix notation
  *          to the same in prefix notation.
  * date:    28-Jan-11
  * for:     http://www.justin.tv/problems/prefixer
