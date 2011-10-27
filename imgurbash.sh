@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# imgur upload script by Kevin Richardson <kevin@triageworks.net>
+# imgur upload script by Kevin Richardson <kevin@magically.us>
 # modified from imgur script by Bart Nagel <bart@tremby.net>
 # I [Bart Nagel] release this as public domain. Do with it what you will.
 

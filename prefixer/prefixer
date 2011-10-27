@@ -1,7 +1,7 @@
 #!/usr/bin/php
 <?php
 /* -------------------------------------------------
- * author:  Kevin Richardson <kevin@triageworks.net>
+ * author:  Kevin Richardson <kevin@magically.us>
  * file:    prefixer.  converts input with infix notation
  *          to the same in prefix notation.
  * date:    28-Jan-11
